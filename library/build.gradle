@@ -1,0 +1,59 @@
+apply plugin: 'android-library'
+apply plugin:  'maven'
+apply plugin:  'signing'
+
+version = "0.1.0"
+group = "com.teepaps.android"
+
+configurations {
+    archives {
+        extendsFrom configurations.default
+    }
+}
+
+signing {
+    required { has("release") && gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
+}
+
+
+def coreAarFile = file('build/core.aar')
+artifacts {
+    archives coreAarFile
+}
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: "file:///Users/ted/AFS/Development/Android/repos")
+            pom.groupId = 'com.teepaps.android'
+            pom.artifactId = 'gridpager'
+            pom.version = '0.1.0'
+        }
+    }
+}
+
+
+
+android {
+    compileSdkVersion 19
+    buildToolsVersion "19.1.0"
+
+    defaultConfig {
+        applicationId "com.teepaps.android.gridpager"
+        minSdkVersion 8
+        targetSdkVersion 19
+        versionCode 1
+        versionName "1.0"
+    }
+    buildTypes {
+        release {
+            runProguard false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    compile 'com.android.support:appcompat-v7:19.+'
+}
