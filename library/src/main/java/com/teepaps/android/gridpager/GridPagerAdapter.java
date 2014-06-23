@@ -1,25 +1,28 @@
-package com.teepaps.android.gridpager;
+package com.gastrograph.adapters;
 
 import android.app.ActionBar.LayoutParams;
 import android.content.Context;
 import android.os.Parcelable;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.support.v4.view.ViewPager.OnPageChangeListener;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ListAdapter;
-import android.widget.TextView;
 import android.widget.ToggleButton;
+
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Created by ted on 6/10/14.
+ * A Pager Adapter that creates Grid-like/Table-like pages, given a ListAdapter.
+ *
+ * @author Ted Papaioannou
+ * @author Mitch Clarke
  */
 public class GridPagerAdapter extends PagerAdapter {
 
@@ -29,31 +32,96 @@ public class GridPagerAdapter extends PagerAdapter {
 
     /* The holder for all of the views */
     ListAdapter adapter;
-    List<LinearLayout> tables;
-    LayoutInflater inflater;
-    Context context;
-    final int columnCount;
-    final int rowCount;
-    final int cellsPerTable;
 
-    private String emptyText = "This is empty";
-    private String displayText;
+    /**
+     * List the pages' layouts
+     */
+    List<LinearLayout> tables;
+
+    /**
+     * Inflater to get xml for textviews
+     */
+    LayoutInflater inflater;
+
+    /**
+     * Context for views to use from
+     */
+    Context context;
+
+    // ---- Table constants
+    /**
+     * Number of columns to display per page
+     */
+    private int columnCount;
+    /**
+     * Number of rows to display per page
+     */
+    private int rowCount;
+    /**
+     * Number of cells displayed per table (rows * column)
+     */
+    private int cellsPerTable;
+
+    // --- Non-grid views
+    /**
+     * View to use when only a single view should be displayed without the grid
+     */
+    private View displayView;
+
+    // --- Non-grid view text
+    /**
+     * View pager to set OnPageChangeListener
+     */
+    private ViewPager viewPager;
+
+    /**
+     * Should the grid pager scroll smoothly?
+     */
+    private boolean isSmoothScroll;
 
     //**********************************************************************************************
     // CONSTRUCTORS
     //**********************************************************************************************
 
-    public GridPagerAdapter(Context context, int rows, int columns, ListAdapter adapter) {
+    public GridPagerAdapter(Context context, int rows, int columns, ListAdapter adapter,
+                            ViewPager pager, final boolean isSmoothScroll)
+    {
         super();
         this.context = context;
-
+        this.viewPager = pager;
         this.columnCount = columns;
         this.rowCount = rows;
-        this.cellsPerTable = columnCount * rowCount;
-        this.adapter = adapter;
+        this.isSmoothScroll = isSmoothScroll;
+        this.inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
-//        inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-//
+        if(isSmoothScroll)
+            viewPager.setOnPageChangeListener(new OnPageChangeListener() {
+
+                @Override
+                public void onPageSelected(int position) {
+                }
+
+                @Override
+                public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+                }
+
+                @Override
+                public void onPageScrollStateChanged(int state)
+                {
+                    if (isSmoothScroll && state == ViewPager.SCROLL_STATE_IDLE) {
+                        int pageCount = getCount();
+                        int currentItem = viewPager.getCurrentItem();
+                        if (currentItem == 0) {
+                            viewPager.setCurrentItem(pageCount - 2, false);
+                        } else if (currentItem == pageCount - 1) {
+                            viewPager.setCurrentItem(1, false);
+                        }
+                    } }
+            });
+
+
+        setCellsPerTable(rowCount, columnCount);
+        changeListAdapter(adapter);
         buildPages();
     }
 
@@ -66,27 +134,24 @@ public class GridPagerAdapter extends PagerAdapter {
         View view;
         if (adapter != null) {
             view = tables.get(position);
+        } else {
+            view = displayView;
         }
-        else {
-            TextView textView = new TextView(context);
-            textView.setText(displayText != null ? displayText : emptyText);
-            view  = textView;
-        }
-
+        view.setTag(view);
         container.addView(view);
+
         return view;
     }
+
 
     @Override
     public int getCount() {
         if (adapter != null) {
-            return (adapter.getCount() / cellsPerTable) + 1;
+            int padding = 0;
+            if(isSmoothScroll)
+                padding = 2;
+            return (adapter.getCount() / cellsPerTable) + 1 + padding;
         }
-//        else if (displayText != null) {
-//            return 1;
-//        }
-
-//        return 0;
 
         return 1;
     }
@@ -115,15 +180,20 @@ public class GridPagerAdapter extends PagerAdapter {
      */
     public void buildPages() {
         if (adapter != null) {
-            final int numberOfTables = (adapter.getCount() / cellsPerTable) + 1;
+            int numberOfTables = getCount();
             tables = new ArrayList<LinearLayout>(numberOfTables);
 
             // Build and add all the tables to the list
+            if(isSmoothScroll)
+                {
+                    numberOfTables -=2; //We are adding the padding manually
+                    tables.add(buildTable((numberOfTables-1)*cellsPerTable));
+                }
             for (int i = 0; i < numberOfTables; i++) {
                 tables.add(buildTable(cellsPerTable * i));
             }
-        }
-        else {
+            if(isSmoothScroll) tables.add(buildTable(0));
+        } else {
             tables = null;
         }
     }
@@ -134,15 +204,11 @@ public class GridPagerAdapter extends PagerAdapter {
      */
     public LinearLayout buildTable(int startingIndex) {
 
-
         LinearLayout linearLayout = new LinearLayout(context);
-
         linearLayout.setOrientation(LinearLayout.VERTICAL);
-//        ViewPager.LayoutParams params = new ViewPager.LayoutParams();
-//        params.height = LayoutParams.MATCH_PARENT;
-//        linearLayout.setLayoutParams(params);
         linearLayout.setWeightSum(rowCount);
         linearLayout.setGravity(Gravity.FILL_VERTICAL);
+
         // Create all the rows
         for (int i = 0; i < rowCount; i++) {
             linearLayout.addView(buildRow(startingIndex + (columnCount * i)));
@@ -190,8 +256,12 @@ public class GridPagerAdapter extends PagerAdapter {
 
     public void changeListAdapter(ListAdapter adapter) {
         this.adapter = adapter;
-        this.displayText = null;
+        this.displayView = null;
         buildPages();
+    }
+
+    private void setCellsPerTable(final int rowCount, final int columnCount) {
+        cellsPerTable = rowCount * columnCount;
     }
 
     //**********************************************************************************************
@@ -206,12 +276,22 @@ public class GridPagerAdapter extends PagerAdapter {
     // SETTERS
     //**********************************************************************************************
 
-    public void setDisplayText(String displayText) {
-        this.displayText = displayText;
+    public void setViewPager(ViewPager pager){this.viewPager = pager;}
+
+    public void setDisplayView(View view) {
+        this.displayView = view;
     }
 
-    public void setEmptyText(String emptyText) {
-        this.emptyText = emptyText;
+
+
+    public void setRows(int rowCount) {
+        this.rowCount = rowCount;
+        setCellsPerTable(rowCount, columnCount);
     }
 
+
+    public void setColumns(int columnCount) {
+        this.columnCount = columnCount;
+        setCellsPerTable(rowCount, columnCount);
+    }
 }
